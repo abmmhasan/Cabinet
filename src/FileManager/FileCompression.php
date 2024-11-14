@@ -2,17 +2,15 @@
 
 namespace Infocyph\Pathwise\FileManager;
 
-use Generator;
 use ZipArchive;
 use Exception;
 
 class FileCompression
 {
-    private ZipArchive $zip;
-    private string $zipFilePath;
+    private readonly ZipArchive $zip;
     private bool $isOpen = false;
     private ?string $password = null;
-    private int $encryptionAlgorithm = ZipArchive::EM_AES_256;
+    private int $encryptionAlgorithm;
     private array $hooks = [];
     private mixed $logger = null;
     private ?string $defaultDecompressionPath = null;
@@ -24,28 +22,25 @@ class FileCompression
      * @param bool $create If true, create a new ZIP file if it doesn't exist.
      * @throws Exception
      */
-    public function __construct(string $zipFilePath, bool $create = false)
+    public function __construct(private readonly string $zipFilePath, bool $create = false)
     {
         $this->zip = new ZipArchive();
-        $this->zipFilePath = $zipFilePath;
 
-        // Open archive on instantiation, create if specified
+        // Set encryption algorithm if supported
+        $this->encryptionAlgorithm = defined('ZipArchive::EM_AES_256') ? ZipArchive::EM_AES_256 : 0;
+
+        // Open the archive with CREATE flag if specified
         $flags = $create ? ZipArchive::CREATE : 0;
         $this->openZip($flags);
     }
 
-
     /**
      * Automatically closes the ZIP archive when the object is destroyed.
-     *
-     * This is a convenience method to ensure the archive is closed even if
-     * the user forgets to call {@see closeZip()}.
      */
     public function __destruct()
     {
         $this->closeZip();
     }
-
 
     /**
      * Close the ZIP archive.
@@ -60,16 +55,8 @@ class FileCompression
         return $this;
     }
 
-
     /**
      * Set the password to use for encrypting the ZIP archive.
-     *
-     * This should be used in conjunction with `setEncryptionAlgorithm()` to
-     * specify the encryption settings for the archive.
-     *
-     * @param string $password The password to use for encryption.
-     *
-     * @return self
      */
     public function setPassword(string $password): self
     {
@@ -77,22 +64,15 @@ class FileCompression
         return $this;
     }
 
-
     /**
      * Set the encryption algorithm for the ZIP archive.
      *
-     * @param int $algorithm The encryption algorithm to use. Must be one of the following:
-     *                        - ZipArchive::EM_AES_256
-     *                        - ZipArchive::EM_AES_128
-     *                        - ZipArchive::EM_PKWARE
-     *
-     * @return self
-     *
+     * @param int $algorithm The encryption algorithm to use.
      * @throws Exception If the specified encryption algorithm is invalid.
      */
     public function setEncryptionAlgorithm(int $algorithm): self
     {
-        if (!in_array($algorithm, [ZipArchive::EM_AES_256, ZipArchive::EM_AES_128, ZipArchive::EM_PKWARE], true)) {
+        if (!in_array($algorithm, [ZipArchive::EM_AES_256, ZipArchive::EM_AES_128], true)) {
             throw new Exception("Invalid encryption algorithm specified.");
         }
 
@@ -100,15 +80,8 @@ class FileCompression
         return $this;
     }
 
-
     /**
      * Set the default path to decompress the ZIP archive to.
-     *
-     * If no destination path is provided to the `decompress` method, the
-     * ZIP archive will be decompressed to the specified default path.
-     *
-     * @param string $path The default path to decompress the ZIP archive to.
-     * @return $this The FileCompression instance.
      */
     public function setDefaultDecompressionPath(string $path): self
     {
@@ -116,15 +89,8 @@ class FileCompression
         return $this;
     }
 
-
     /**
      * Set a logger function to be called with log messages.
-     *
-     * The logger function should take a single string argument, which is the
-     * log message. If no logger is set, log messages will be ignored.
-     *
-     * @param callable $logger The logger function to be called.
-     * @return $this The FileCompression instance.
      */
     public function setLogger(callable $logger): self
     {
@@ -132,21 +98,8 @@ class FileCompression
         return $this;
     }
 
-
     /**
      * Register a callback to be executed when a specific event occurs.
-     *
-     * Events:
-     * - `beforeAdd`: Called before adding a file to the ZIP archive.
-     * - `afterAdd`: Called after adding a file to the ZIP archive.
-     * - `beforeCompress`: Called before compressing the ZIP archive.
-     * - `afterCompress`: Called after compressing the ZIP archive.
-     * - `beforeDecompress`: Called before decompressing the ZIP archive.
-     * - `afterDecompress`: Called after decompressing the ZIP archive.
-     *
-     * @param string $event The event name.
-     * @param callable $callback The callback to be executed.
-     * @return $this The FileCompression instance.
      */
     public function registerHook(string $event, callable $callback): self
     {
@@ -154,16 +107,8 @@ class FileCompression
         return $this;
     }
 
-
     /**
      * Compress a file or directory.
-     *
-     * This method compresses the specified file or directory, including all
-     * subdirectories and their contents. It triggers the `beforeCompress` and
-     * `afterCompress` hooks.
-     *
-     * @param string $source The file or directory to compress.
-     * @return self
      */
     public function compress(string $source): self
     {
@@ -173,19 +118,9 @@ class FileCompression
         return $this;
     }
 
-
     /**
      * Compress files or directories into the current ZIP archive, optionally
      * filtering by file extensions.
-     *
-     * This method recursively traverses the specified directory and adds all
-     * files to the ZIP archive, optionally filtering by file extensions. If a
-     * password has been set, it will be used to encrypt all added files.
-     *
-     * @param string $source The file or directory to compress.
-     * @param array $extensions An array of file extensions to filter by.
-     *
-     * @return self
      */
     public function compressWithFilter(string $source, array $extensions = []): self
     {
@@ -195,23 +130,12 @@ class FileCompression
         return $this;
     }
 
-
     /**
      * Decompresses the contents of the current ZIP archive.
-     *
-     * This method extracts all files from the ZIP archive to the specified
-     * destination directory. If no destination is provided, the default
-     * decompression path is used. If a password is set, it is applied to
-     * the ZIP archive before extraction.
-     *
-     * @param string|null $destination The destination directory for extraction.
-     *                                 If null, the default decompression path is used.
-     * @return self This instance.
-     * @throws Exception If no destination path is provided or extraction fails.
      */
     public function decompress(?string $destination = null): self
     {
-        $destination = $destination ?? $this->defaultDecompressionPath;
+        $destination ??= $this->defaultDecompressionPath;
         if (!$destination) {
             throw new Exception("No destination path provided for decompression.");
         }
@@ -228,23 +152,14 @@ class FileCompression
         return $this;
     }
 
-
     /**
      * Add a file to the current ZIP archive.
-     *
-     * Triggers `beforeAdd` and `afterAdd` hooks around the file addition process.
-     * If a password is set, the file will be encrypted using the specified
-     * encryption algorithm.
-     *
-     * @param string $filePath The file path to add to the ZIP archive.
-     * @param string|null $zipPath The path within the ZIP archive. Defaults to the basename of the file path.
-     * @return self
      */
     public function addFile(string $filePath, ?string $zipPath = null): self
     {
         $this->triggerHook('beforeAdd', $filePath);
         $this->log("Adding file: $filePath");
-        $zipPath = $zipPath ?? basename($filePath);
+        $zipPath ??= basename($filePath);
 
         if ($this->password) {
             $this->zip->setPassword($this->password);
@@ -258,13 +173,8 @@ class FileCompression
         return $this;
     }
 
-
     /**
      * Batch add multiple files to the current ZIP archive.
-     *
-     * @param array $files An associative array of file paths as keys and their
-     *                     corresponding paths within the ZIP archive as values.
-     * @return self
      */
     public function batchAddFiles(array $files): self
     {
@@ -275,23 +185,8 @@ class FileCompression
         return $this;
     }
 
-
     /**
      * Batch extract files from the current ZIP archive.
-     *
-     * Extracts multiple files from the current ZIP archive to the specified
-     * destination directory. The files are specified as an associative array,
-     * where the key is the path of the file within the ZIP archive, and the
-     * value is the path where the file should be extracted to.
-     *
-     * @param array $files An associative array of files to extract, where the
-     *                     key is the path of the file within the ZIP archive,
-     *                     and the value is the path where the file should be
-     *                     extracted to.
-     * @param string $destination The destination directory where the files
-     *                            should be extracted to.
-     * @return self This instance.
-     * @throws Exception If any of the files fail to be extracted.
      */
     public function batchExtractFiles(array $files, string $destination): self
     {
@@ -307,40 +202,24 @@ class FileCompression
         return $this;
     }
 
-
     /**
      * Checks the integrity of the current ZIP archive.
-     *
-     * Returns true if the ZIP archive is valid and has no errors, false otherwise.
-     *
-     * @return bool True if the archive is valid, false otherwise.
      */
     public function checkIntegrity(): bool
     {
         return $this->zip->status === ZipArchive::ER_OK;
     }
 
-
     /**
      * Get the number of files in the current ZIP archive.
-     *
-     * Returns the number of files within the ZIP archive.
-     *
-     * @return int The number of files in the archive.
      */
     public function fileCount(): int
     {
         return $this->zip->numFiles;
     }
 
-
     /**
      * Lists all files in the current ZIP archive.
-     *
-     * Iterates through the ZIP archive and collects the names of all files,
-     * returning them as an array of strings.
-     *
-     * @return array An array containing the names of all files in the ZIP archive.
      */
     public function listFiles(): array
     {
@@ -351,45 +230,32 @@ class FileCompression
         return $files;
     }
 
-
     /**
      * Returns an iterator that yields the names of all files in the current ZIP archive.
-     *
-     * The iterator yields the names of all files in the archive as strings.
-     *
-     * @return Generator<string> An iterator that yields the names of all files in the archive.
      */
-    public function getFileIterator(): Generator
+    public function getFileIterator(): \Generator
     {
         for ($i = 0; $i < $this->zip->numFiles; $i++) {
             yield $this->zip->getNameIndex($i);
         }
     }
 
-
     /**
      * Opens the ZIP archive at the specified path with the given flags.
      *
      * Throws an exception if the archive cannot be opened.
-     *
-     * @param int $flags The flags to use when opening the archive. Defaults to 0.
-     * @throws Exception
-     * @see ZipArchive::open()
      */
     private function openZip(int $flags = 0): void
     {
-        if (!$this->isOpen && $this->zip->open($this->zipFilePath, $flags) !== true) {
-            throw new Exception("Failed to open ZIP archive at {$this->zipFilePath}.");
+        $result = $this->zip->open($this->zipFilePath, $flags);
+        if ($result !== true) {
+            throw new Exception("Failed to open ZIP archive at {$this->zipFilePath}. Error: $result");
         }
         $this->isOpen = true;
     }
 
-
     /**
      * Closes the ZIP archive if it is open.
-     *
-     * This method checks if the ZIP archive is currently open. If it is,
-     * the archive is closed, and the open state is set to false.
      */
     private function closeZip(): void
     {
@@ -399,12 +265,8 @@ class FileCompression
         }
     }
 
-
     /**
      * Triggers all callbacks registered for the specified event.
-     *
-     * @param string $event The name of the event to trigger.
-     * @param mixed ...$args The arguments to pass to the event callbacks.
      */
     private function triggerHook(string $event, ...$args): void
     {
@@ -413,11 +275,8 @@ class FileCompression
         }
     }
 
-
     /**
      * Log a message if the logger is callable.
-     *
-     * @param string $message The message to log.
      */
     private function log(string $message): void
     {
@@ -426,20 +285,13 @@ class FileCompression
         }
     }
 
-
     /**
      * Recursively traverse the specified directory and add all files to the ZIP archive,
      * optionally under a relative path.
-     *
-     * If a password has been set, it will be used to encrypt all added files.
-     *
-     * @param string $path The path to add files from.
-     * @param ZipArchive $zip The ZIP archive to add the files to.
-     * @param string|null $relativePath The relative path to add files under.
      */
     private function addFilesToZip(string $path, ZipArchive $zip, string $relativePath = null): void
     {
-        $relativePath = $relativePath ?? basename($path);
+        $relativePath ??= basename($path);
 
         if (is_dir($path)) {
             $zip->addEmptyDir($relativePath);
@@ -459,26 +311,12 @@ class FileCompression
         }
     }
 
-
     /**
      * Adds files to the ZIP archive, optionally filtering by file extensions.
-     *
-     * Recursively traverses the specified directory and adds all files to the ZIP
-     * archive, optionally filtering by file extensions. If a password has been set,
-     * it will be used to encrypt all added files.
-     *
-     * @param string $path The path to add files from.
-     * @param ZipArchive $zip The ZIP archive to add the files to.
-     * @param string|null $relativePath The relative path to add files under.
-     * @param array $extensions An array of file extensions to filter by.
      */
-    private function addFilesToZipWithFilter(
-        string $path,
-        ZipArchive $zip,
-        ?string $relativePath,
-        array $extensions,
-    ): void {
-        $relativePath = $relativePath ?? basename($path);
+    private function addFilesToZipWithFilter(string $path, ZipArchive $zip, ?string $relativePath, array $extensions): void
+    {
+        $relativePath ??= basename($path);
 
         if (is_dir($path)) {
             $zip->addEmptyDir($relativePath);

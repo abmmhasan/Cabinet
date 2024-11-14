@@ -1,80 +1,88 @@
 <?php
 
-use Infocyph\Pathwise\FileManager\DirectoryOperations;
-use PHPUnit\Framework\TestCase;
-use ZipArchive;
+use Infocyph\Pathwise\DirectoryManager\DirectoryOperations;
 
 // Helper function to create a temporary directory for testing
-function createTempDirectory(): string {
-    $tempDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . uniqid('test_dir_', true);
+function createTempDirectory(): string
+{
+    $tempDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . uniqid('test_dir_', true) . random_int(0, 99);
     mkdir($tempDir);
+
     return $tempDir;
 }
 
 beforeEach(function () {
-    // Set up a temporary directory for each test
     $this->tempDir = createTempDirectory();
     $this->directoryOperations = new DirectoryOperations($this->tempDir);
 });
 
 afterEach(function () {
-    // Clean up the temporary directory after each test
-    (new DirectoryOperations($this->tempDir))->delete(true);
+    if (is_dir($this->tempDir)) {
+        (new DirectoryOperations($this->tempDir))->delete(true);
+    }
 });
 
 test('can create a directory', function () {
-    $newDir = $this->tempDir . DIRECTORY_SEPARATOR . 'new_dir';
+    $newDir = $this->tempDir . DIRECTORY_SEPARATOR . uniqid('new_dir_', true);
     $dirOps = new DirectoryOperations($newDir);
-
-    expect($dirOps->create())->toBeTrue();
-    expect(is_dir($newDir))->toBeTrue();
+    expect($dirOps->create())
+        ->toBeTrue()
+        ->and(is_dir($newDir))->toBeTrue();
 });
 
 test('can delete a directory', function () {
-    $this->directoryOperations->create();
-    expect($this->directoryOperations->delete())->toBeTrue();
-    expect(is_dir($this->tempDir))->toBeFalse();
+//    $this->directoryOperations->create();
+    expect($this->directoryOperations->delete())
+        ->toBeTrue()
+        ->and(is_dir($this->tempDir))->toBeFalse();
 });
 
 test('can copy a directory', function () {
     $destDir = createTempDirectory();
-    $this->directoryOperations->create();
-
-    // Create a test file in the directory
-    file_put_contents($this->tempDir . '/test.txt', 'sample content');
+//    $this->directoryOperations->create();
+    $fileName = uniqid('test_', true) . '.txt';
+    file_put_contents($this->tempDir . '/' . $fileName, 'sample content');
     $this->directoryOperations->copy($destDir);
 
-    expect(is_dir($destDir))->toBeTrue();
-    expect(file_exists($destDir . '/test.txt'))->toBeTrue();
-    expect(file_get_contents($destDir . '/test.txt'))->toBe('sample content');
+    expect(is_dir($destDir))
+        ->toBeTrue()
+        ->and(file_exists($destDir . '/' . $fileName))->toBeTrue()
+        ->and(file_get_contents($destDir . '/' . $fileName))->toBe('sample content');
 });
 
 test('can move a directory', function () {
     $destDir = createTempDirectory();
-    $result = $this->directoryOperations->move($destDir . '/moved_dir');
+    $newLocation = $destDir . DIRECTORY_SEPARATOR . uniqid('moved_dir_', true);
+    $result = $this->directoryOperations->move($newLocation);
 
-    expect($result)->toBeTrue();
-    expect(is_dir($this->tempDir))->toBeFalse();
-    expect(is_dir($destDir . '/moved_dir'))->toBeTrue();
+    expect($result)
+        ->toBeTrue()
+        ->and(is_dir($this->tempDir))->toBeFalse()
+        ->and(is_dir($newLocation))->toBeTrue();
 });
 
 test('can list directory contents', function () {
-    file_put_contents($this->tempDir . '/test.txt', 'sample content');
-    file_put_contents($this->tempDir . '/example.txt', 'example content');
+    $file1 = $this->tempDir . '/' . uniqid('test_', true) . '.txt';
+    $file2 = $this->tempDir . '/' . uniqid('example_', true) . '.txt';
+    file_put_contents($file1, 'sample content');
+    file_put_contents($file2, 'example content');
 
     $contents = $this->directoryOperations->listContents();
+    $contents = array_map(fn($path) => realpath($path), $contents);
 
-    expect($contents)->toContain($this->tempDir . '/test.txt', $this->tempDir . '/example.txt');
+    expect($contents)->toContain(realpath($file1), realpath($file2));
 });
 
 test('can list directory contents with details', function () {
-    file_put_contents($this->tempDir . '/test.txt', 'sample content');
+    $file = $this->tempDir . '/' . uniqid('test_', true) . '.txt';
+    file_put_contents($file, 'sample content');
 
     $contents = $this->directoryOperations->listContents(true);
     $fileInfo = $contents[0];
 
-    expect($fileInfo)->toHaveKeys(['path', 'type', 'size', 'permissions', 'last_modified']);
-    expect($fileInfo['type'])->toBe('file');
+    expect($fileInfo)
+        ->toHaveKeys(['path', 'type', 'size', 'permissions', 'last_modified'])
+        ->and($fileInfo['type'])->toBe('file');
 });
 
 test('can get and set directory permissions', function () {
@@ -83,42 +91,51 @@ test('can get and set directory permissions', function () {
 });
 
 test('can calculate directory size', function () {
-    file_put_contents($this->tempDir . '/file1.txt', str_repeat('A', 1024)); // 1 KB
-    file_put_contents($this->tempDir . '/file2.txt', str_repeat('B', 2048)); // 2 KB
+    $file1 = $this->tempDir . '/' . uniqid('file1_', true) . '.txt';
+    $file2 = $this->tempDir . '/' . uniqid('file2_', true) . '.txt';
+    file_put_contents($file1, str_repeat('A', 1024)); // 1 KB
+    file_put_contents($file2, str_repeat('B', 2048)); // 2 KB
 
     expect($this->directoryOperations->size())->toBe(1024 + 2048);
 });
 
 test('can flatten directory contents', function () {
-    mkdir($this->tempDir . '/subdir');
-    file_put_contents($this->tempDir . '/subdir/file1.txt', 'content');
-    file_put_contents($this->tempDir . '/file2.txt', 'more content');
+    $subdir = $this->tempDir . '/' . uniqid('subdir_', true);
+    mkdir($subdir);
+    $file1 = $subdir . '/' . uniqid('file1_', true) . '.txt';
+    $file2 = $this->tempDir . '/' . uniqid('file2_', true) . '.txt';
+    file_put_contents($file1, 'content');
+    file_put_contents($file2, 'more content');
 
     $flattened = $this->directoryOperations->flatten();
+    $flattened = array_map(fn($path) => realpath($path), $flattened);
 
-    expect($flattened)->toContain($this->tempDir . '/subdir/file1.txt', $this->tempDir . '/file2.txt');
+    expect($flattened)->toContain(realpath($file1), realpath($file2));
 });
 
 test('can zip directory contents', function () {
-    file_put_contents($this->tempDir . '/file.txt', 'zip test');
+    $file = $this->tempDir . '/' . uniqid('file_', true) . '.txt';
+    file_put_contents($file, 'zip test');
 
-    $zipPath = $this->tempDir . '/archive.zip';
+    $zipPath = $this->tempDir . '/' . uniqid('archive_', true) . '.zip';
     $this->directoryOperations->zip($zipPath);
 
-    $zip = new ZipArchive();
+    $zip = new ZipArchive;
     $zip->open($zipPath);
 
-    expect($zip->numFiles)->toBe(1);
-    expect($zip->getNameIndex(0))->toBe('file.txt');
+    expect($zip->numFiles)
+        ->toBe(1)
+        ->and($zip->getNameIndex(0))->toBe(basename($file));
     $zip->close();
 });
 
 test('can unzip archive', function () {
     // Create a zip file with a sample file
-    $zipPath = $this->tempDir . '/archive.zip';
-    $zip = new ZipArchive();
+    $zipPath = $this->tempDir . '/' . uniqid('archive_', true) . '.zip';
+    $zip = new ZipArchive;
     $zip->open($zipPath, ZipArchive::CREATE);
-    $zip->addFromString('file.txt', 'sample content');
+    $fileName = uniqid('file_', true) . '.txt';
+    $zip->addFromString($fileName, 'sample content');
     $zip->close();
 
     // Unzip to a new directory
@@ -126,21 +143,31 @@ test('can unzip archive', function () {
     $dirOps = new DirectoryOperations($unzipDir);
     $dirOps->unzip($zipPath);
 
-    expect(file_exists($unzipDir . '/file.txt'))->toBeTrue();
-    expect(file_get_contents($unzipDir . '/file.txt'))->toBe('sample content');
+    expect(file_exists($unzipDir . '/' . $fileName))
+        ->toBeTrue()
+        ->and(file_get_contents($unzipDir . '/' . $fileName))->toBe('sample content');
 });
 
 test('finds files based on criteria', function () {
-    file_put_contents($this->tempDir . '/file1.txt', 'file one');
-    file_put_contents($this->tempDir . '/file2.md', 'file two');
-    chmod($this->tempDir . '/file1.txt', 0644);
+    $file1 = $this->tempDir . '/' . uniqid('file1_', true) . '.txt';
+    $file2 = $this->tempDir . '/' . uniqid('file2_', true) . '.md';
+    file_put_contents($file1, 'file one');
+    file_put_contents($file2, 'file two');
+
+    // Set permissions compatible across platforms
+    if (strtoupper(substr(PHP_OS, 0, 3)) !== 'WIN') {
+        chmod($file1, 0644);
+    }
 
     $foundFiles = $this->directoryOperations->find([
-        'name' => 'file',
+        'name' => basename($file1),
         'extension' => 'txt',
         'permissions' => 0644,
     ]);
 
-    expect($foundFiles)->toHaveCount(1);
-    expect($foundFiles[0])->toEndWith('file1.txt');
+    $foundFiles = array_map(fn($path) => realpath($path), $foundFiles);
+
+    expect($foundFiles)
+        ->toHaveCount(1)
+        ->and($foundFiles[0])->toEndWith(basename($file1));
 });

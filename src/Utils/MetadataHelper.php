@@ -148,7 +148,7 @@ class MetadataHelper
      */
     public static function isBrokenSymlink(string $path): ?bool
     {
-        return is_link($path) ? !file_exists(readlink($path)) : null;
+        return is_link($path) ? realpath($path) === false : null;
     }
 
     /**
@@ -168,7 +168,7 @@ class MetadataHelper
             return null;
         }
 
-        return array_map(fn($time) => date('Y-m-d H:i:s', $time), $timestamps);
+        return array_map(fn ($time) => date('Y-m-d H:i:s', $time), $timestamps);
     }
 
     /**
@@ -243,12 +243,19 @@ class MetadataHelper
      */
     public static function getLastModifiedBy(string $path): ?string
     {
-        if (!self::isPosixSupported() || !file_exists($path)) {
+        if (!file_exists($path)) {
             return null;
         }
 
-        $ownerInfo = posix_getpwuid(fileowner($path));
-        return $ownerInfo['name'] ?? null;
+        if (self::isPosixSupported()) {
+            $ownerInfo = posix_getpwuid(fileowner($path));
+            return $ownerInfo['name'] ?? null;
+        } elseif (PHP_OS_FAMILY === 'Windows') {
+            $command = "powershell -Command \"(Get-Acl -Path '$path').Owner\"";
+            $output = shell_exec($command);
+            return $output ? trim($output) : null;
+        }
+        return null;
     }
 
     /**

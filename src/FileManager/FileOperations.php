@@ -9,7 +9,6 @@ use SplFileInfo;
 
 class FileOperations
 {
-    protected string $filePath;
     protected ?SplFileObject $file = null;
 
     /**
@@ -17,9 +16,8 @@ class FileOperations
      *
      * @param string $filePath
      */
-    public function __construct(string $filePath)
+    public function __construct(protected string $filePath)
     {
-        $this->filePath = $filePath;
     }
 
     /**
@@ -119,8 +117,11 @@ class FileOperations
      */
     public function delete(): self
     {
+        if (!$this->exists()) {
+            throw new RuntimeException("File does not exist at $this->filePath.");
+        }
         if (!unlink($this->filePath)) {
-            throw new RuntimeException("Unable to delete file at {$this->filePath}.");
+            throw new RuntimeException("Unable to delete file at $this->filePath.");
         }
         return $this;
     }
@@ -223,6 +224,9 @@ class FileOperations
      */
     public function setPermissions(int $permissions): self
     {
+        if (!$this->exists()) {
+            throw new RuntimeException("File does not exist at $this->filePath.");
+        }
         if (!chmod($this->filePath, $permissions)) {
             throw new RuntimeException("Unable to set permissions for file: {$this->filePath}.");
         }

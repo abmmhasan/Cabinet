@@ -12,13 +12,9 @@ use Countable;
 use Stringable;
 use JsonSerializable;
 
-/**
- * Memory-safe file writer with multiple write modes and enhanced lock handling.
- */
 class SafeFileWriter implements Countable, Stringable, JsonSerializable
 {
     private ?SplFileObject $file = null;
-    private bool $append;
     private int $writeCount = 0;
     private array $writeTypesCount = [];
     private bool $isLocked = false;
@@ -29,9 +25,8 @@ class SafeFileWriter implements Countable, Stringable, JsonSerializable
      * @param string $filename The name of the file to write to.
      * @param bool $append Whether to append to the existing file or truncate it.
      */
-    public function __construct(private readonly string $filename, bool $append = false)
+    public function __construct(private readonly string $filename, private readonly bool $append = false)
     {
-        $this->append = $append;
     }
 
     /**
@@ -268,7 +263,7 @@ class SafeFileWriter implements Countable, Stringable, JsonSerializable
         }
         $line = '';
         foreach ($data as $index => $field) {
-            $line .= str_pad($field, $widths[$index]);
+            $line .= str_pad((string) $field, $widths[$index]);
         }
         $this->writeCount++;
         return (bool)$this->file->fwrite($line . PHP_EOL);

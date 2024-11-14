@@ -19,7 +19,7 @@ class PathHelper
      */
     public static function join(string ...$segments): string
     {
-        return implode(DIRECTORY_SEPARATOR, array_map(fn($segment) => trim($segment, DIRECTORY_SEPARATOR), $segments));
+        return implode(DIRECTORY_SEPARATOR, array_map(fn ($segment) => trim($segment, DIRECTORY_SEPARATOR), $segments));
     }
 
     /**
@@ -37,6 +37,7 @@ class PathHelper
             return self::$cache[$path];
         }
 
+        $path = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $path);
         $parts = explode(DIRECTORY_SEPARATOR, $path);
         $stack = [];
         foreach ($parts as $part) {
@@ -82,7 +83,7 @@ class PathHelper
         if (self::isAbsolute($path)) {
             return self::normalize($path);
         }
-        $base = $base ?? getcwd();
+        $base ??= getcwd();
         return self::normalize(self::join($base, $path));
     }
 

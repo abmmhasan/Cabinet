@@ -2,4 +2,6 @@
 
 namespace Infocyph\Pathwise\Exceptions;
 
-class FileAccessException extends \Exception {}
+class FileAccessException extends \Exception
+{
+}

@@ -62,7 +62,7 @@ class PermissionsHelper
         if (!chmod($path, $permissions)) {
             throw new RuntimeException("Failed to set permissions on {$path}");
         }
-        return new self;
+        return new self();
     }
 
     /**
@@ -163,7 +163,7 @@ class PermissionsHelper
             throw new RuntimeException("Failed to set ownership on {$path}");
         }
 
-        return new self;
+        return new self();
     }
 
     /**
@@ -247,31 +247,6 @@ class PermissionsHelper
             0x0001 => ($permissions & 0x0200) ? 't' : 'x',
         ];
 
-        return array_reduce(array_keys($flags), function ($info, $flag) use ($permissions, $flags) {
-            return $info . (($permissions & $flag) ? $flags[$flag] : '-');
-        }, '');
-    }
-
-
-    /**
-     * @param string $path
-     * @return int|null Permissions or null if path does not exist
-     * @deprecated since version 2.0, use PermissionsHelper::getPermissions() instead
-     * @see PermissionsHelper::getPermissions()
-     */
-    public static function getPerms(string $path): ?int
-    {
-        return self::getPermissions($path);
-    }
-
-    /**
-     * @param string $path
-     * @param int $permissions
-     * @return self
-     * @see PermissionsHelper::setPermissions()
-     */
-    public static function setPerms(string $path, int $permissions): self
-    {
-        return self::setPermissions($path, $permissions);
+        return array_reduce(array_keys($flags), fn ($info, $flag) => $info . (($permissions & $flag) ? $flags[$flag] : '-'), '');
     }
 }

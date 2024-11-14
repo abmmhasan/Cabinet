@@ -22,7 +22,9 @@
   },
   "suggest": {
     "ext-zip": "required if you want to use compression.",
-    "ext-posix": "required if you want to use permissions."
+    "ext-posix": "required if you want to use permissions.",
+    "ext-xmlreader": "required if you want to use XML parsing.",
+    "ext-simplexml": "required if you want to use XML parsing."
   },
   "require-dev": {
     "captainhook/captainhook": "^5.23",
