@@ -75,10 +75,17 @@ test('it writes XML data to the file', function () {
 test('it writes serialized data to the file', function () {
     $writer = new SafeFileWriter($this->tempFilePath);
     $writer->serialized(['key' => 'value']);
+    $writer->serialized(['another' => 'entry']);
 
-    $content = unserialize(file_get_contents($this->tempFilePath));
-    expect($content)->toBe(['key' => 'value']);
+    // Deserialize all lines
+    $lines = file($this->tempFilePath, FILE_IGNORE_NEW_LINES);
+    $content = array_map(fn($line) => unserialize($line), $lines);
+    expect($content)->toBe([
+        ['key' => 'value'],
+        ['another' => 'entry'],
+    ]);
 });
+
 
 test('it writes a JSON array to the file', function () {
     $writer = new SafeFileWriter($this->tempFilePath);

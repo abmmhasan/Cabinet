@@ -33,17 +33,18 @@ class PermissionsHelper
      * directory does not exist, it returns null.
      *
      * @param string $path The path to the file or directory.
-     * @return int|null The permissions as an octal string, or null if the
+     * @return string|null The permissions as an octal string, or null if the
      *         path does not exist.
      */
-    public static function getPermissions(string $path): ?int
+    public static function getPermissions(string $path): ?string
     {
         if (!file_exists($path)) {
             return null;
         }
 
-        return self::$permissionCache[$path]['permissions'] ??= substr(sprintf('%o', fileperms($path)), -4);
+        return self::$permissionCache[$path]['permissions'] ??= substr(sprintf('%04o', fileperms($path)), -4);
     }
+
 
     /**
      * Sets the permissions of the file or directory at the given path.
@@ -64,6 +65,7 @@ class PermissionsHelper
         }
         return new self();
     }
+
 
     /**
      * Checks if the specified path is readable.
@@ -199,24 +201,6 @@ class PermissionsHelper
 
         return self::formatPermissions(fileperms($path));
     }
-
-
-    /**
-     * Resets the permissions of the file or directory to default values.
-     *
-     * This method sets the permissions of the given $path to default values
-     * (0755 for directories and 0644 for files). This is useful for clearing
-     * away any special permissions that may have been set, such as setuid, setgid,
-     * or sticky bit.
-     *
-     * @param string $path The path to the file or directory to reset permissions on.
-     */
-    public static function resetPermissions(string $path): void
-    {
-        $defaultPermissions = is_dir($path) ? 0755 : 0644;
-        self::setPermissions($path, $defaultPermissions);
-    }
-
 
     /**
      * Formats an integer representing file permissions into a human-readable string.

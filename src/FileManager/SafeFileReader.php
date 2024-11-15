@@ -477,7 +477,7 @@ final class SafeFileReader implements Countable, Iterator, SeekableIterator
     private function serializedIterator(): Generator
     {
         while (!$this->file->eof()) {
-            $serializedLine = $this->file->fgets();
+            $serializedLine = trim($this->file->fgets());
             if ($serializedLine) {
                 $result = unserialize($serializedLine);
                 if ($result === false && $serializedLine !== 'b:0;') {
@@ -489,6 +489,7 @@ final class SafeFileReader implements Countable, Iterator, SeekableIterator
             }
         }
     }
+
 
     /**
      * Iterates over a JSON array with error handling.

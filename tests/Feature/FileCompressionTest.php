@@ -3,145 +3,127 @@
 use Infocyph\Pathwise\FileManager\FileCompression;
 
 beforeEach(function () {
-    // Create a temporary directory for testing
     $this->tempDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . uniqid('test_dir_', true);
     mkdir($this->tempDir);
 
-    // Create test files
     $this->file1 = $this->tempDir . DIRECTORY_SEPARATOR . 'file1.txt';
     $this->file2 = $this->tempDir . DIRECTORY_SEPARATOR . 'file2.txt';
     file_put_contents($this->file1, 'This is the first test file.');
     file_put_contents($this->file2, 'This is the second test file.');
 
-    // Temporary ZIP file path
     $this->zipFilePath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . uniqid('test_zip_', true) . '.zip';
 });
 
 afterEach(function () {
-    // Clean up files and directories after each test
+    array_map('unlink', glob($this->tempDir . DIRECTORY_SEPARATOR . '*'));
+    rmdir($this->tempDir);
     if (file_exists($this->zipFilePath)) {
         unlink($this->zipFilePath);
     }
-
-    if (is_dir($this->tempDir)) {
-        array_map('unlink', glob($this->tempDir . DIRECTORY_SEPARATOR . '*'));
-        rmdir($this->tempDir);
-    }
 });
 
-// Test ZIP archive creation and file compression
+// Test creating a ZIP archive and compressing files
 test('it creates a ZIP archive and compresses files', function () {
     $compressor = new FileCompression($this->zipFilePath, true);
+    $compressor->compress($this->tempDir)->save();
 
-    // Check if the ZIP file opens successfully
-    $compressor->compress($this->file1);
-    $compressor->compress($this->file2);
-    $compressor->save();
+    expect(file_exists($this->zipFilePath))->toBeTrue();
 
-    // Verify ZIP file creation
-    if (!file_exists($this->zipFilePath)) {
-        throw new RuntimeException("Failed to create ZIP file at {$this->zipFilePath}");
-    }
-
-    // Check file count inside ZIP
-    expect($compressor->fileCount())->toBe(2);
-})->skip(PHP_OS_FAMILY === 'Windows');
-
-
-// Test setting password and compressing files
-test('it sets a password and compresses files with encryption', function () {
-    $compressor = new FileCompression($this->zipFilePath, true);
-    $compressor->setPassword('securePassword123')->compress($this->file1);
-
-    expect($compressor->fileCount())->toBe(1);
-    expect($compressor->listFiles())->toContain('file1.txt');
+    $filesInZip = $compressor->listFiles();
+    expect($filesInZip)
+        ->toContain('file1.txt', 'file2.txt')
+        ->and($compressor->fileCount())->toBe(2);
 });
 
 // Test decompressing a ZIP archive
 test('it decompresses a ZIP archive', function () {
-    // Compress files first
     $compressor = new FileCompression($this->zipFilePath, true);
     $compressor->compress($this->tempDir)->save();
 
-    // Decompress to a new directory
     $decompressDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . uniqid('decompress_', true);
     mkdir($decompressDir);
 
     $compressor->decompress($decompressDir);
-    expect(file_exists($decompressDir . DIRECTORY_SEPARATOR . 'file1.txt'))->toBeTrue();
-    expect(file_exists($decompressDir . DIRECTORY_SEPARATOR . 'file2.txt'))->toBeTrue();
 
-    // Cleanup decompression directory
+    expect(file_exists($decompressDir . DIRECTORY_SEPARATOR . 'file1.txt'))
+        ->toBeTrue()
+        ->and(file_exists($decompressDir . DIRECTORY_SEPARATOR . 'file2.txt'))->toBeTrue();
+
     array_map('unlink', glob($decompressDir . DIRECTORY_SEPARATOR . '*'));
     rmdir($decompressDir);
-})->skip(PHP_OS_FAMILY === 'Windows');
-
-// Test listing files in a ZIP archive
-test('it lists files in the ZIP archive', function () {
-    $compressor = new FileCompression($this->zipFilePath, true);
-    $compressor->compress($this->file1)->compress($this->file2);
-
-    $files = $compressor->listFiles();
-    expect($files)->toContain('file1.txt', 'file2.txt');
 });
 
-// Test batch adding files to the ZIP archive
-test('it batch adds files to the ZIP archive', function () {
+// Test compressing files with a password
+test('it compresses files with a password and encrypts them', function () {
     $compressor = new FileCompression($this->zipFilePath, true);
-    $compressor->batchAddFiles([
-        $this->file1 => 'file1_in_zip.txt',
-        $this->file2 => 'file2_in_zip.txt',
-    ]);
+    $compressor->setPassword('securepassword')->compress($this->tempDir)->save();
 
-    expect($compressor->fileCount())->toBe(2);
-    expect($compressor->listFiles())->toContain('file1_in_zip.txt', 'file2_in_zip.txt');
+    expect($compressor->fileCount())
+        ->toBe(2)
+        ->and($compressor->listFiles())->toContain('file1.txt', 'file2.txt');
 });
 
-// Test setting encryption algorithm
-test('it sets encryption algorithm', function () {
+// Test decompressing a password-protected ZIP with wrong password
+test('it fails to decompress with an incorrect password', function () {
     $compressor = new FileCompression($this->zipFilePath, true);
-    $compressor->setEncryptionAlgorithm(ZipArchive::EM_AES_128);
-    $compressor->compress($this->file1);
+    $compressor->setPassword('securepassword')->compress($this->tempDir)->save();
 
-    expect($compressor->fileCount())->toBe(1);
-});
-
-// Test ZIP archive integrity check
-test('it checks ZIP archive integrity', function () {
-    $compressor = new FileCompression($this->zipFilePath, true);
-    $compressor->compress($this->file1);
-
-    expect($compressor->checkIntegrity())->toBeTrue();
-});
-
-// Test adding and decompressing with hooks
-test('it registers and triggers hooks for adding files', function () {
-    $compressor = new FileCompression($this->zipFilePath, true);
-
-    $hookTriggered = false;
-    $compressor->registerHook('beforeAdd', function () use (&$hookTriggered) {
-        $hookTriggered = true;
-    });
-
-    $compressor->compress($this->file1);
-    expect($hookTriggered)->toBeTrue();
-})->skip(PHP_OS_FAMILY === 'Windows');
-
-// Test decompressing a password-protected ZIP archive
-test('it decompresses a password-protected ZIP archive', function () {
-    $compressor = new FileCompression($this->zipFilePath, true);
-    $compressor->setPassword('securePassword123')->compress($this->file1)->save();
-
-    $decompressDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . uniqid('decompress_protected_', true);
+    $decompressDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . uniqid('decompress_', true);
     mkdir($decompressDir);
 
-    // Re-open ZIP with password for decompression
-    $decompressor = new FileCompression($this->zipFilePath);
-    $decompressor->setPassword('securePassword123')->decompress($decompressDir);
+    $failedDecompressor = new FileCompression($this->zipFilePath);
+    $failedDecompressor->setPassword('wrongpassword');
 
-    expect(file_exists($decompressDir . DIRECTORY_SEPARATOR . 'file1.txt'))->toBeTrue();
+    expect(fn () => $failedDecompressor->decompress($decompressDir))
+        ->toThrow(Exception::class, 'Failed to extract ZIP archive');
 
-    // Cleanup decompression directory
-    unlink($decompressDir . DIRECTORY_SEPARATOR . 'file1.txt');
     rmdir($decompressDir);
+});
+
+// Test adding individual files
+test('it adds individual files to a ZIP archive', function () {
+    $compressor = new FileCompression($this->zipFilePath, true);
+    $compressor->addFile($this->file1)->addFile($this->file2)->save();
+
+    expect($compressor->fileCount())
+        ->toBe(2)
+        ->and($compressor->listFiles())->toContain('file1.txt', 'file2.txt');
+});
+
+// Test batch adding files
+test('it handles batch adding files', function () {
+    $compressor = new FileCompression($this->zipFilePath, true);
+    $compressor->batchAddFiles([$this->file1 => 'file1.txt', $this->file2 => 'file2.txt'])->save();
+
+    expect($compressor->fileCount())
+        ->toBe(2)
+        ->and($compressor->listFiles())->toContain('file1.txt', 'file2.txt');
+});
+
+// Test hooks
+test('it triggers hooks during file operations', function () {
+    $beforeAdd = false;
+    $afterAdd = false;
+
+    $compressor = new FileCompression($this->zipFilePath, true);
+    $compressor->registerHook('beforeAdd', function () use (&$beforeAdd) {
+        $beforeAdd = true;
+    })->registerHook('afterAdd', function () use (&$afterAdd) {
+        $afterAdd = true;
+    });
+
+    $compressor->addFile($this->file1)->save();
+
+    expect($beforeAdd)
+        ->toBeTrue()
+        ->and($afterAdd)->toBeTrue();
+});
+
+// Test file iterator
+test('it retrieves a file iterator for the ZIP archive', function () {
+    $compressor = new FileCompression($this->zipFilePath, true);
+    $compressor->compress($this->tempDir)->save();
+
+    $files = iterator_to_array($compressor->getFileIterator());
+    expect($files)->toContain('file1.txt', 'file2.txt');
 });

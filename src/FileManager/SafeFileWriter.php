@@ -12,6 +12,18 @@ use Countable;
 use Stringable;
 use JsonSerializable;
 
+/**
+ * @method SafeFileReader character() Character iterator
+ * @method SafeFileReader line() Line iterator
+ * @method SafeFileReader csv(string $separator = ",", string $enclosure = "\"", string $escape = "\\") CSV iterator
+ * @method SafeFileReader binary(int $bytes = 1024) Binary iterator
+ * @method SafeFileReader json() JSON line-by-line iterator
+ * @method SafeFileReader regex(string $pattern) Regex iterator
+ * @method SafeFileReader fixedWidth(array $widths) Fixed-width field iterator
+ * @method SafeFileReader xml(string $element) XML iterator
+ * @method SafeFileReader serialized() Serialized object iterator
+ * @method SafeFileReader jsonArray() JSON array iterator
+ */
 class SafeFileWriter implements Countable, Stringable, JsonSerializable
 {
     private ?SplFileObject $file = null;

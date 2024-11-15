@@ -43,6 +43,16 @@ class FileCompression
     }
 
     /**
+     * Ensures the ZIP archive is open before any operation.
+     */
+    private function reopenIfNeeded(): void
+    {
+        if (!$this->isOpen) {
+            $this->openZip();
+        }
+    }
+
+    /**
      * Close the ZIP archive.
      *
      * This method is a no-op if the archive is already closed.
@@ -112,6 +122,7 @@ class FileCompression
      */
     public function compress(string $source): self
     {
+        $this->reopenIfNeeded();
         $source = realpath($source);
         $this->log("Compressing source: $source");
         $this->addFilesToZip($source, $this->zip);
@@ -124,6 +135,7 @@ class FileCompression
      */
     public function compressWithFilter(string $source, array $extensions = []): self
     {
+        $this->reopenIfNeeded();
         $source = realpath($source);
         $this->log("Compressing source with filter: $source");
         $this->addFilesToZipWithFilter($source, $this->zip, null, $extensions);
@@ -135,6 +147,7 @@ class FileCompression
      */
     public function decompress(?string $destination = null): self
     {
+        $this->reopenIfNeeded();
         $destination ??= $this->defaultDecompressionPath;
         if (!$destination) {
             throw new Exception("No destination path provided for decompression.");
@@ -157,6 +170,7 @@ class FileCompression
      */
     public function addFile(string $filePath, ?string $zipPath = null): self
     {
+        $this->reopenIfNeeded();
         $this->triggerHook('beforeAdd', $filePath);
         $this->log("Adding file: $filePath");
         $zipPath ??= basename($filePath);
@@ -178,6 +192,7 @@ class FileCompression
      */
     public function batchAddFiles(array $files): self
     {
+        $this->reopenIfNeeded();
         $this->log("Batch adding files.");
         foreach ($files as $filePath => $zipPath) {
             $this->addFile($filePath, $zipPath);
@@ -190,15 +205,14 @@ class FileCompression
      */
     public function batchExtractFiles(array $files, string $destination): self
     {
+        $this->reopenIfNeeded();
         $this->log("Batch extracting files.");
-
         foreach ($files as $zipPath => $localPath) {
             $localPath = "$destination/$localPath";
             if (!$this->zip->extractTo($localPath, $zipPath)) {
                 throw new Exception("Failed to extract file $zipPath to $localPath.");
             }
         }
-
         return $this;
     }
 
@@ -207,6 +221,7 @@ class FileCompression
      */
     public function checkIntegrity(): bool
     {
+        $this->reopenIfNeeded();
         return $this->zip->status === ZipArchive::ER_OK;
     }
 
@@ -215,6 +230,7 @@ class FileCompression
      */
     public function fileCount(): int
     {
+        $this->reopenIfNeeded();
         return $this->zip->numFiles;
     }
 
@@ -223,6 +239,7 @@ class FileCompression
      */
     public function listFiles(): array
     {
+        $this->reopenIfNeeded();
         $files = [];
         for ($i = 0; $i < $this->zip->numFiles; $i++) {
             $files[] = $this->zip->getNameIndex($i);
@@ -235,6 +252,7 @@ class FileCompression
      */
     public function getFileIterator(): \Generator
     {
+        $this->reopenIfNeeded();
         for ($i = 0; $i < $this->zip->numFiles; $i++) {
             yield $this->zip->getNameIndex($i);
         }
@@ -289,18 +307,23 @@ class FileCompression
      * Recursively traverse the specified directory and add all files to the ZIP archive,
      * optionally under a relative path.
      */
-    private function addFilesToZip(string $path, ZipArchive $zip, string $relativePath = null): void
+    private function addFilesToZip(string $path, ZipArchive $zip, string $baseDir = null): void
     {
-        $relativePath ??= basename($path);
+        $baseDir ??= $path;
 
         if (is_dir($path)) {
-            $zip->addEmptyDir($relativePath);
+            $relativePath = trim(str_replace($baseDir, '', $path), DIRECTORY_SEPARATOR);
+            if (!empty($relativePath)) {
+                $zip->addEmptyDir($relativePath);
+            }
+
             foreach (scandir($path) as $file) {
                 if ($file !== '.' && $file !== '..') {
-                    $this->addFilesToZip("$path/$file", $zip, "$relativePath/$file");
+                    $this->addFilesToZip("$path/$file", $zip, $baseDir);
                 }
             }
         } else {
+            $relativePath = trim(str_replace($baseDir, '', $path), DIRECTORY_SEPARATOR);
             if ($this->password) {
                 $zip->setPassword($this->password);
                 $zip->addFile($path, $relativePath);
