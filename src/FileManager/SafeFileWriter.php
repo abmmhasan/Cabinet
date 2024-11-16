@@ -117,7 +117,7 @@ class SafeFileWriter implements Countable, Stringable, JsonSerializable
      * @param array $params The parameters to be passed to the specific write operation.
      * @throws Exception If the specified write type is unknown.
      */
-    public function __call(string $type, array $params): void
+    public function __call(string $type, array $params)
     {
         $this->initiate($this->append ? 'a' : 'w');
 
@@ -126,7 +126,7 @@ class SafeFileWriter implements Countable, Stringable, JsonSerializable
                 $this->lock();  // Non-blocking by default
             }
 
-            match ($type) {
+            $returnable = match ($type) {
                 'character' => $this->writeCharacter(...$params),
                 'line' => $this->writeLine(...$params),
                 'csv' => $this->writeCSV(...$params),
@@ -144,6 +144,8 @@ class SafeFileWriter implements Countable, Stringable, JsonSerializable
         } finally {
             $this->unlock();  // Ensure unlock even if an exception occurs
         }
+
+        return $returnable;
     }
 
     /**
